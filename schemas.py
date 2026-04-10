@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 # --- User ---
 
+
 class UserBase(BaseModel):
     name: str
     email: str
@@ -28,6 +29,7 @@ class UserResponse(UserBase):
 
 
 # --- Item ---
+
 
 class ItemBase(BaseModel):
     title: str

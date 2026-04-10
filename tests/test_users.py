@@ -35,7 +35,9 @@ class TestListUsers:
         assert resp.status_code == 200
         assert len(resp.json()) == 2
 
-    async def test_skip_beyond_total_returns_empty(self, client: AsyncClient, seeded_user: dict):
+    async def test_skip_beyond_total_returns_empty(
+        self, client: AsyncClient, seeded_user: dict
+    ):
         resp = await client.get("/users/?skip=100")
         assert resp.status_code == 200
         assert resp.json() == []
@@ -90,7 +92,9 @@ class TestCreateUser:
         for field in ("id", "name", "email", "is_active", "created_at"):
             assert field in data
 
-    async def test_duplicate_email_returns_409(self, client: AsyncClient, seeded_user: dict):
+    async def test_duplicate_email_returns_409(
+        self, client: AsyncClient, seeded_user: dict
+    ):
         resp = await client.post(
             "/users/", json={"name": "Dupe", "email": seeded_user["email"]}
         )
@@ -145,9 +149,7 @@ class TestUpdateUser:
 
     async def test_reactivate_user(self, client: AsyncClient, seeded_user: dict):
         await client.put(f"/users/{seeded_user['id']}", json={"is_active": False})
-        resp = await client.put(
-            f"/users/{seeded_user['id']}", json={"is_active": True}
-        )
+        resp = await client.put(f"/users/{seeded_user['id']}", json={"is_active": True})
         assert resp.status_code == 200
         assert resp.json()["is_active"] is True
 

@@ -5,6 +5,7 @@ from schemas import ItemCreate, ItemUpdate, UserCreate, UserUpdate
 
 # --- Users ---
 
+
 def get_user(db: Session, user_id: int) -> User | None:
     return db.query(User).filter(User.id == user_id).first()
 
@@ -46,6 +47,7 @@ def delete_user(db: Session, user_id: int) -> bool:
 
 
 # --- Items ---
+
 
 def get_item(db: Session, item_id: int) -> Item | None:
     return db.query(Item).filter(Item.id == item_id).first()

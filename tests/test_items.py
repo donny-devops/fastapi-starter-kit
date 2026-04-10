@@ -111,18 +111,14 @@ class TestCreateItem:
             assert field in data
 
     async def test_nonexistent_owner_returns_404(self, client: AsyncClient):
-        resp = await client.post(
-            "/items/", json={"title": "Orphan", "owner_id": 9999}
-        )
+        resp = await client.post("/items/", json={"title": "Orphan", "owner_id": 9999})
         assert resp.status_code == 404
         assert resp.json()["detail"] == "Owner user not found"
 
     async def test_missing_title_returns_422(
         self, client: AsyncClient, seeded_user: dict
     ):
-        resp = await client.post(
-            "/items/", json={"owner_id": seeded_user["id"]}
-        )
+        resp = await client.post("/items/", json={"owner_id": seeded_user["id"]})
         assert resp.status_code == 422
 
     async def test_missing_owner_id_returns_422(self, client: AsyncClient):
