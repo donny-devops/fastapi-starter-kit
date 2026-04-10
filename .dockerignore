@@ -1,0 +1,46 @@
+# Version control
+.git
+.gitignore
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment files (injected at runtime)
+.env
+
+# Tests
+tests/
+pytest.ini
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Database files
+*.db
+
+# Docker files (not needed inside the image)
+Dockerfile
+docker-compose.yml
+docker-compose*.yml
+
+# Docs & project meta
+README.md
+CHANGELOG.md
+CONTRIBUTING.md
+SECURITY.md
+LICENSE
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
