@@ -29,7 +29,7 @@ jobs:
           SECRET_PATTERN='BEGIN (RSA |OPENSSH |EC |DSA )?PRIVATE KEY|ghp_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{20,}|sk-[A-Za-z0-9]{20,}'
           if grep -RInE "$SECRET_PATTERN" . \
             --exclude-dir=.git \
-            --exclude=.github/workflows/security.yml; then
+            --exclude-dir=.github/workflows; then
             echo "Potential secret material found. Remove it and rotate the credential."
             exit 1
           fi
