@@ -54,22 +54,16 @@ async def github_callback(
         )
     if not code or not state:
         raise HTTPException(status_code=400, detail="Missing code or state parameter")
-
-    # Session-based state validation (multi-worker safe)
     expected_state = request.session.pop("oauth_state", None)
     if not expected_state or state != expected_state:
         raise HTTPException(status_code=400, detail="Invalid or expired OAuth state")
-
     if not GITHUB_CLIENT_ID or not GITHUB_CLIENT_SECRET:
         raise HTTPException(
             status_code=500,
             detail="GitHub OAuth credentials are not fully configured",
         )
-
     _timeout = httpx.Timeout(connect=5.0, read=10.0, write=5.0, pool=5.0)
-
     async with httpx.AsyncClient(timeout=_timeout) as client:
-        # 1. Exchange code for access token (state not sent - not part of spec)
         token_resp = await client.post(
             GITHUB_TOKEN_URL,
             data={
@@ -91,14 +85,11 @@ async def github_callback(
         access_token: str = token_data.get("access_token", "")
         if not access_token:
             raise HTTPException(status_code=400, detail="No access token in GitHub response")
-
         _gh_headers = {
             "Authorization": f"Bearer {access_token}",
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
         }
-
-        # 2. Fetch user profile
         user_resp = await client.get(GITHUB_USER_URL, headers=_gh_headers)
         if user_resp.status_code != 200:
             raise HTTPException(
@@ -106,8 +97,6 @@ async def github_callback(
                 detail=f"Failed to fetch GitHub user: {user_resp.text}",
             )
         github_user = user_resp.json()
-
-        # 3. Resolve primary verified email (null for private-email users)
         email = github_user.get("email")
         if not email:
             emails_resp = await client.get(GITHUB_EMAILS_URL, headers=_gh_headers)
@@ -120,24 +109,21 @@ async def github_callback(
                     ),
                     None,
                 )
-
-    # 4. Store access token server-side only - never expose to client
-    request.session["access_token"] = access_token
-    request.session["github_user_id"] = github_user.get("id")
-
-    return JSONResponse(
-        {
-            "message": "GitHub OAuth successful",
-            "github_user": {
-                "id": github_user.get("id"),
-                "login": github_user.get("login"),
-                "name": github_user.get("name"),
-                "email": email,
-                "html_url": github_user.get("html_url"),
-                "avatar_url": github_user.get("avatar_url"),
-            },
-        }
-    )
+        request.session["access_token"] = access_token
+        request.session["github_user_id"] = github_user.get("id")
+        return JSONResponse(
+            {
+                "message": "GitHub OAuth successful",
+                "github_user": {
+                    "id": github_user.get("id"),
+                    "login": github_user.get("login"),
+                    "name": github_user.get("name"),
+                    "email": email,
+                    "html_url": github_user.get("html_url"),
+                    "avatar_url": github_user.get("avatar_url"),
+                },
+            }
+        )
 
 
 @router.get("/logout", summary="Clear session")
