@@ -4,10 +4,15 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./app.db")
+
 ALLOWED_ORIGINS: list[str] = os.getenv(
-    "ALLOWED_ORIGINS", "http://localhost:3000"
+    "ALLOWED_ORIGINS",
+    "http://localhost:3000",
 ).split(",")
+
 LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()
+
+SECRET_KEY: str = os.getenv("SECRET_KEY", "change-me-in-production")
 
 # GitHub OAuth
 GITHUB_CLIENT_ID: str = os.getenv("GITHUB_CLIENT_ID", "")
