@@ -74,7 +74,10 @@ python-multipart>=0.0.20
 ## New environment variables
 
 Extend the table in [`README.md`](../README.md#environment-variables) and the
-loader in [`config.py`](../config.py) with four new variables:
+loader in [`config.py`](../config.py) with three new variables. Note that
+`JWT_SECRET` is required and has no default — this is intentional, unlike the
+existing env vars which all have defaults. The app will fail fast on startup
+if `JWT_SECRET` is not set:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -194,9 +197,9 @@ def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
 
-def create_access_token(subject: str | int) -> str:
+def create_access_token(subject: int) -> str:
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    payload = {"sub": subject, "exp": int(expire.timestamp())}
+    payload = {"sub": str(subject), "exp": int(expire.timestamp())}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
@@ -267,10 +270,12 @@ def login(
     db: Session = Depends(get_db),
 ):
     user = crud.get_user_by_email(db, form.username)   # form.username holds the email
-    # Always run bcrypt to prevent timing attacks that reveal valid emails
+    # Always run bcrypt to prevent timing attacks that reveal valid emails.
+    # Compute the check before the branch so short-circuit doesn't skip it.
     _DUMMY_HASH = "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYnVkqN7W5m"
     hashed = user.hashed_password if user else _DUMMY_HASH
-    if user is None or not verify_password(form.password, hashed):
+    password_ok = verify_password(form.password, hashed)
+    if user is None or not password_ok:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
