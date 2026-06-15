@@ -58,9 +58,9 @@ codebase:
 Add the following to [`requirements.txt`](../requirements.txt):
 
 ```
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-python-multipart==0.0.20
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+python-multipart>=0.0.20
 ```
 
 | Package | Purpose |
@@ -81,7 +81,6 @@ loader in [`config.py`](../config.py) with four new variables:
 | `JWT_SECRET` | *(required — no default)* | Signing key for access tokens. Do not reuse across environments. |
 | `JWT_ALGORITHM` | `HS256` | JWT signing algorithm |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` | Access-token lifetime in minutes |
-| `BCRYPT_ROUNDS` | `12` | Password hashing work factor |
 
 Generate a strong `JWT_SECRET` with:
 
@@ -95,7 +94,6 @@ Example `config.py` additions:
 JWT_SECRET: str = os.environ["JWT_SECRET"]  # fail fast if missing
 JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
-BCRYPT_ROUNDS: int = int(os.getenv("BCRYPT_ROUNDS", "12"))
 ```
 
 ---
@@ -152,7 +150,7 @@ class Token(BaseModel):
 
 
 class TokenPayload(BaseModel):
-    sub: str   # user id as string
+    sub: int   # user id (Pydantic coerces the JWT string claim automatically)
     exp: int   # unix timestamp
 ```
 
@@ -175,15 +173,16 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 import crud
-from config import ACCESS_TOKEN_EXPIRE_MINUTES, JWT_ALGORITHM, JWT_SECRET, BCRYPT_ROUNDS
+from config import ACCESS_TOKEN_EXPIRE_MINUTES, JWT_ALGORITHM, JWT_SECRET
 from database import get_db
 from models import User
 from schemas import TokenPayload
 
-pwd_context = CryptContext(schemes=["bcrypt"], bcrypt__rounds=BCRYPT_ROUNDS)
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
@@ -195,7 +194,7 @@ def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
 
-def create_access_token(subject: str) -> str:
+def create_access_token(subject: str | int) -> str:
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     payload = {"sub": subject, "exp": int(expire.timestamp())}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
@@ -205,7 +204,7 @@ def decode_access_token(token: str) -> TokenPayload:
     try:
         raw = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         return TokenPayload(**raw)
-    except (JWTError, ValueError) as exc:
+    except (JWTError, ValidationError, ValueError) as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
@@ -218,7 +217,7 @@ def get_current_user(
     db: Session = Depends(get_db),
 ) -> User:
     payload = decode_access_token(token)
-    user = crud.get_user(db, int(payload.sub))
+    user = crud.get_user(db, payload.sub)
     if user is None or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -259,15 +258,7 @@ def register(data: UserRegister, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Email already registered"
         )
-    user = User(
-        name=data.name,
-        email=data.email,
-        hashed_password=hash_password(data.password),
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
+    return crud.create_user_with_password(db, data, hash_password(data.password))
 
 
 @router.post("/login", response_model=Token)
@@ -276,13 +267,16 @@ def login(
     db: Session = Depends(get_db),
 ):
     user = crud.get_user_by_email(db, form.username)   # form.username holds the email
-    if user is None or not verify_password(form.password, user.hashed_password):
+    # Always run bcrypt to prevent timing attacks that reveal valid emails
+    _DUMMY_HASH = "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYnVkqN7W5m"
+    hashed = user.hashed_password if user else _DUMMY_HASH
+    if user is None or not verify_password(form.password, hashed):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return Token(access_token=create_access_token(subject=str(user.id)))
+    return Token(access_token=create_access_token(subject=user.id))
 
 
 @router.get("/me", response_model=UserResponse)
@@ -301,9 +295,21 @@ app.include_router(users.router)
 app.include_router(items.router)
 ```
 
-Note that `POST /auth/register` bypasses `crud.create_user` so it can set
-`hashed_password` directly. Alternatively, extend `crud.create_user` to accept
-a pre-hashed password — either approach is fine.
+`POST /auth/register` delegates to a new `crud.create_user_with_password`
+function that accepts a pre-hashed password. Add it to
+[`crud.py`](../crud.py) alongside the existing `create_user`:
+
+```python
+def create_user_with_password(db: Session, data: UserRegister, hashed_password: str) -> User:
+    user = User(name=data.name, email=data.email, hashed_password=hashed_password)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+```
+
+This keeps all database writes inside `crud.py`, consistent with the rest of
+the codebase.
 
 ---
 
@@ -529,8 +535,9 @@ os.environ.setdefault("JWT_SECRET", "test-secret-do-not-use-in-production")
   every outstanding token — there is no denylist to maintain.
 - Keep `ACCESS_TOKEN_EXPIRE_MINUTES` short (30 minutes or less). Shorter
   tokens limit the blast radius of a stolen header.
-- Use a high-enough `BCRYPT_ROUNDS` value (12 is a reasonable 2026 default).
-  Raise it as hardware gets faster.
+- Leave passlib's bcrypt work factor at the default (12 rounds as of 2026).
+  If you override it via `CryptContext(bcrypt__rounds=...)`, the value is
+  fixed at module load time — changes require an application restart.
 - Rate-limit `POST /auth/login` at your reverse proxy or with a library like
   `slowapi` to slow down credential stuffing.
 
