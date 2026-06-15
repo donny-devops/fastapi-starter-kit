@@ -1,0 +1,20 @@
+# CODEOWNERS
+# Owners are automatically requested for review when pull requests change owned paths.
+
+# Default owner
+* @donny-devops
+
+# CI/CD and repository policy
+.github/ @donny-devops
+.github/workflows/ @donny-devops
+.github/dependabot.yml @donny-devops
+
+# Application code and tests
+*.py @donny-devops
+tests/ @donny-devops
+
+# Runtime, dependencies, and platform docs
+Dockerfile @donny-devops
+requirements.txt @donny-devops
+docs/PLATFORM_BASELINE.md @donny-devops
+SECURITY.md @donny-devops

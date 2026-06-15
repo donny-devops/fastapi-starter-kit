@@ -1,0 +1,37 @@
+name: Repository Policy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    name: Docs and policy checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate required governance files
+        shell: bash
+        run: |
+          test -f README.md
+          test -f SECURITY.md
+          test -f Dockerfile
+          test -f requirements.txt
+          test -f docs/PLATFORM_BASELINE.md
+
+      - name: Validate platform baseline coverage
+        shell: bash
+        run: |
+          grep -qi 'AWS' docs/PLATFORM_BASELINE.md
+          grep -qi 'PostgreSQL' docs/PLATFORM_BASELINE.md
+          grep -qi 'Docker' docs/PLATFORM_BASELINE.md
+          grep -qi 'Terraform' docs/PLATFORM_BASELINE.md
+          grep -qi 'Supabase' docs/PLATFORM_BASELINE.md

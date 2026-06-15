@@ -1,0 +1,30 @@
+name: Repository Health
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    name: Green check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate project files exist
+        run: |
+          test -f README.md
+          test -f requirements.txt
+          test -f main.py
+          test -f Dockerfile
+          test -f .github/workflows/ci.yml
+
+      - name: Report status
+        run: echo "FastAPI starter kit repository health checks passed."
