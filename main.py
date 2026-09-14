@@ -7,9 +7,11 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 from config import ALLOWED_ORIGINS, LOG_LEVEL, SECRET_KEY
-from database import Base, engine
+from database import init_db
+from rate_limit import limiter
 from routers import items, users
 from routers.auth_github import router as github_auth_router
+from routers.ops import router as ops_router
 
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL, logging.INFO),
@@ -21,8 +23,8 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
-    logger.info("Database tables ready")
+    init_db()
+    logger.info("SQLite tables ready")
     yield
 
 
@@ -60,6 +62,31 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 app.include_router(users.router)
 app.include_router(items.router)
 app.include_router(github_auth_router)
+app.include_router(ops_router)
+
+
+@app.middleware("http")
+async def mesh_rate_limit(request: Request, call_next):
+    if request.url.path in {"/health", "/docs", "/openapi.json", "/redoc"}:
+        return await call_next(request)
+    client = request.headers.get("cf-connecting-ip")
+    if not client and request.client:
+        client = request.client.host
+    allowed, remaining = limiter.allow(client or "unknown")
+    if not allowed:
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Rate limit exceeded"},
+            headers={
+                "Retry-After": "60",
+                "X-RateLimit-Limit": str(limiter.limit_per_minute),
+                "X-RateLimit-Remaining": "0",
+            },
+        )
+    response = await call_next(request)
+    response.headers["X-RateLimit-Limit"] = str(limiter.limit_per_minute)
+    response.headers["X-RateLimit-Remaining"] = str(remaining)
+    return response
 
 
 @app.get("/health", tags=["health"])

@@ -1,62 +1,66 @@
+import sqlite3
+
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from database import Base, get_db
+from cache import l1
+from database import get_db, init_db, set_connection_factory
 from main import app
+from rate_limit import limiter
 
-# ---------------------------------------------------------------------------
-# Test database — single in-memory SQLite shared across all tests via StaticPool
-# ---------------------------------------------------------------------------
-_engine = create_engine(
-    "sqlite:///:memory:",
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-_TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
-Base.metadata.create_all(bind=_engine)
+TEST_DB_URI = "file:testdb?mode=memory&cache=shared"
+
+_keeper = sqlite3.connect(TEST_DB_URI, uri=True, check_same_thread=False)
+_keeper.row_factory = sqlite3.Row
+_keeper.execute("PRAGMA foreign_keys = ON")
+init_db(_keeper)
+
+
+def _memory_connect() -> sqlite3.Connection:
+    conn = sqlite3.connect(TEST_DB_URI, uri=True, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
+
+
+set_connection_factory(_memory_connect)
 
 
 def _override_get_db():
-    db = _TestingSessionLocal()
+    conn = _memory_connect()
     try:
-        yield db
+        yield conn
     finally:
-        db.close()
+        conn.close()
 
 
 app.dependency_overrides[get_db] = _override_get_db
 
 
-# ---------------------------------------------------------------------------
-# Wipe every table after each test so tests are fully isolated
-# ---------------------------------------------------------------------------
 @pytest.fixture(autouse=True)
 def clean_tables():
+    l1.clear()
+    limiter.reset()
     yield
-    with _engine.connect() as conn:
-        for table in reversed(Base.metadata.sorted_tables):
-            conn.execute(table.delete())
-        conn.commit()
+    _keeper.execute("DELETE FROM items")
+    _keeper.execute("DELETE FROM users")
+    try:
+        _keeper.execute("DELETE FROM sqlite_sequence")
+    except sqlite3.OperationalError:
+        pass
+    _keeper.commit()
 
 
-# ---------------------------------------------------------------------------
-# HTTP client
-# ---------------------------------------------------------------------------
 @pytest_asyncio.fixture
 async def client() -> AsyncClient:
     async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
+        transport=ASGITransport(app=app),
+        base_url="http://test",
     ) as ac:
         yield ac
 
 
-# ---------------------------------------------------------------------------
-# Shared seed data (created via the API so they go through the same session)
-# ---------------------------------------------------------------------------
 @pytest_asyncio.fixture
 async def seeded_user(client: AsyncClient) -> dict:
     resp = await client.post(

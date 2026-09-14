@@ -6,7 +6,7 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: sqlite:////app/data/app.db
+      SQLITE_PATH: /app/data/app.db
     volumes:
       - db-data:/app/data
     healthcheck:

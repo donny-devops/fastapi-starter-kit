@@ -8,15 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- GitHub Actions CI workflow (`.github/workflows/ci.yml`): ruff lint, ruff format
-  check, pytest, and Docker build on every push and PR; Docker build is gated on
-  lint + test passing and uses GHA layer cache
+- Cloudflare mesh scale-up on the origin: L1 LRU cache, 50k req/min rate
+  limit, `/ops/*` shard routing, 6-way LLM failover catalog, 768-d vector
+  batch ingest, D1 migration, and `cloudflare/worker.js` edge proxy.
 
 ### Changed
-- Dockerfile: production dependencies now filtered with `sed` (replaces fragile
-  `grep … | xargs` pipe); container now runs as a non-root `appuser`
-- `docker-compose.yml`: `environment` block moved above `volumes` for readability;
-  healthcheck `test` command formatted as a multi-line YAML sequence
+- Replaced SQLAlchemy with the Python standard-library `sqlite3` driver. Schema
+  is created in `database.py`; CRUD uses parameterized SQL. `models.py` and the
+  `sqlalchemy` dependency are removed.
+- Restored valid YAML for the Trivy step in `.github/workflows/ci.yml` (diff
+  markers had been committed, so GitHub skipped the workflow).
+- Dockerfile keeps `httpx` (needed by GitHub OAuth) and creates a writable
+  `/app/data` directory for the Compose SQLite volume.
 
 ## [0.1.0] - 2026-04-10
 

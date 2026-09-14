@@ -23,7 +23,9 @@ GITHUB_EMAILS_URL = "https://api.github.com/user/emails"
 async def login_github(request: Request):
     """Generate a state token, store in session, redirect to GitHub consent."""
     if not GITHUB_CLIENT_ID:
-        raise HTTPException(status_code=500, detail="GITHUB_CLIENT_ID is not configured")
+        raise HTTPException(
+            status_code=500, detail="GITHUB_CLIENT_ID is not configured"
+        )
     state = secrets.token_urlsafe(32)
     request.session["oauth_state"] = state
     params = {
@@ -84,7 +86,9 @@ async def github_callback(
             raise HTTPException(status_code=400, detail=token_data)
         access_token: str = token_data.get("access_token", "")
         if not access_token:
-            raise HTTPException(status_code=400, detail="No access token in GitHub response")
+            raise HTTPException(
+                status_code=400, detail="No access token in GitHub response"
+            )
         _gh_headers = {
             "Authorization": f"Bearer {access_token}",
             "Accept": "application/vnd.github+json",

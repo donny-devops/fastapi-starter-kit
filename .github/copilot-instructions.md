@@ -18,19 +18,19 @@
   - Verify sensitive endpoints (login, register) have stricter limits
 
 ### 2. Database Security
-- **SQLAlchemy Best Practices**
-  - Use parameterized queries, never string concatenation
-  - Check for N+1 query issues (missing eager loading)
-  - Verify database credentials use environment variables
-  - Flag any hardcoded connection strings
-- **Migrations**
-  - Alembic migrations should be reversible (`downgrade()` implemented)
+- **sqlite3 Best Practices**
+  - Use parameterized queries (`?` placeholders), never string-concatenate user input into SQL
+  - Column names in dynamic UPDATE statements must come from a server-side allowlist
+  - Enable `PRAGMA foreign_keys = ON` on every connection
+  - Verify the database path comes from environment variables
+- **Schema**
+  - Table DDL lives in `database.py` (`init_db()` / `SCHEMA`)
   - Check for data loss risks in schema changes
-  - Verify migrations are tested before merge
+  - Verify schema changes are covered by tests
 
 ### 3. Async/Await Patterns
 - Flag blocking I/O in async functions (requests, time.sleep)
-- Verify proper use of `await` with async database sessions
+- Verify proper use of `await` with async I/O
 - Check for missing `async with` context managers
 - Ensure background tasks don't block event loop
 

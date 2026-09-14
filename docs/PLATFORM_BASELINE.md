@@ -7,7 +7,8 @@ This document defines the intended infrastructure, data, container, and policy p
 | Capability | Status | Notes |
 | --- | --- | --- |
 | FastAPI service | Implemented | `main.py` exposes the application and health endpoint. |
-| PostgreSQL compatibility | Planned / deployment-ready | The starter currently defaults to SQLite for local development; production deployments should use PostgreSQL via `DATABASE_URL`. |
+| SQLite | Implemented | Persistence uses the Python `sqlite3` stdlib driver. Schema is created at startup. |
+| PostgreSQL | Out of scope for the app runtime | This starter does not speak PostgreSQL. Use SQLite via `SQLITE_PATH` or a `sqlite:///` `DATABASE_URL`. |
 | Docker | Implemented | `Dockerfile` builds and runs the API container. |
 | AWS | Recommended deployment target | Use ECS Fargate or App Runner for the API, with RDS PostgreSQL for persistence. |
 | Terraform | Recommended for production | Use Terraform to provision networking, IAM, ECS/App Runner, RDS, logging, and secrets. |
@@ -16,16 +17,17 @@ This document defines the intended infrastructure, data, container, and policy p
 ## Recommended production path
 
 ```text
-Client -> HTTPS Load Balancer / App Runner -> FastAPI container -> PostgreSQL
+Client -> Cloudflare Worker (optional) -> FastAPI container -> SQLite volume
                                         -> CloudWatch logs / metrics
 ```
 
 ## Required environment variables
 
 ```text
-DATABASE_URL=postgresql+psycopg://<user>:<password>@<host>:5432/<database>
+SQLITE_PATH=/app/data/app.db
 ALLOWED_ORIGINS=https://example.com
 LOG_LEVEL=INFO
+RATE_LIMIT_PER_MINUTE=50000
 ```
 
 Secrets must be supplied by a secrets manager or protected environment variables. Do not commit `.env` files.
@@ -36,7 +38,7 @@ Recommended AWS components:
 
 - VPC with private subnets for database resources
 - ECS Fargate or App Runner for the API container
-- RDS PostgreSQL for production data
+- RDS PostgreSQL is **not** required by this starter; persist SQLite on a volume or EFS if you stay on sqlite3. PostgreSQL remains an option only if you replace the driver.
 - Secrets Manager or SSM Parameter Store for credentials
 - CloudWatch Logs for application logs
 - IAM roles with least privilege
@@ -44,7 +46,7 @@ Recommended AWS components:
 
 ## PostgreSQL baseline
 
-Production PostgreSQL requirements:
+This starter ships SQLite only. A PostgreSQL cutover would mean replacing `database.py` / `crud.py`, not flipping `DATABASE_URL`. If you later adopt PostgreSQL:
 
 - TLS required where supported
 - automated backups enabled

@@ -168,6 +168,19 @@ class TestUpdateUser:
         resp = await client.get(f"/users/{seeded_user['id']}")
         assert resp.json()["name"] == "Persisted"
 
+    async def test_duplicate_email_returns_409(
+        self, client: AsyncClient, seeded_user: dict
+    ):
+        other = await client.post(
+            "/users/", json={"name": "Other", "email": "other@example.com"}
+        )
+        assert other.status_code == 201
+        resp = await client.put(
+            f"/users/{other.json()['id']}", json={"email": seeded_user["email"]}
+        )
+        assert resp.status_code == 409
+        assert resp.json()["detail"] == "Email already registered"
+
     async def test_not_found(self, client: AsyncClient):
         resp = await client.put("/users/9999", json={"name": "Ghost"})
         assert resp.status_code == 404
