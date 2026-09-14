@@ -1,85 +1,129 @@
-from sqlalchemy.orm import Session
-from models import Item, User
+import sqlite3
+
+from database import row_to_dict
 from schemas import ItemCreate, ItemUpdate, UserCreate, UserUpdate
 
-
-# --- Users ---
-
-
-def get_user(db: Session, user_id: int) -> User | None:
-    return db.query(User).filter(User.id == user_id).first()
+_USER_UPDATE_FIELDS = frozenset({"name", "email", "is_active"})
+_ITEM_UPDATE_FIELDS = frozenset({"title", "description"})
 
 
-def get_user_by_email(db: Session, email: str) -> User | None:
-    return db.query(User).filter(User.email == email).first()
+def _require_lastrowid(cursor: sqlite3.Cursor) -> int:
+    row_id = cursor.lastrowid
+    if row_id is None:
+        raise RuntimeError("INSERT did not produce a row id")
+    return row_id
 
 
-def get_users(db: Session, skip: int = 0, limit: int = 100) -> list[User]:
-    return db.query(User).offset(skip).limit(limit).all()
+def get_user(db: sqlite3.Connection, user_id: int) -> dict | None:
+    row = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    return row_to_dict(row) if row else None
 
 
-def create_user(db: Session, data: UserCreate) -> User:
-    user = User(**data.model_dump())
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+def get_user_by_email(db: sqlite3.Connection, email: str) -> dict | None:
+    row = db.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+    return row_to_dict(row) if row else None
+
+
+def get_users(db: sqlite3.Connection, skip: int = 0, limit: int = 100) -> list[dict]:
+    rows = db.execute(
+        "SELECT * FROM users ORDER BY id LIMIT ? OFFSET ?",
+        (limit, skip),
+    ).fetchall()
+    return [row_to_dict(row) for row in rows]
+
+
+def create_user(db: sqlite3.Connection, data: UserCreate) -> dict:
+    try:
+        cursor = db.execute(
+            "INSERT INTO users (name, email) VALUES (?, ?)",
+            (data.name, data.email),
+        )
+        db.commit()
+    except sqlite3.IntegrityError:
+        db.rollback()
+        raise
+    user = get_user(db, _require_lastrowid(cursor))
+    if user is None:
+        raise RuntimeError("Failed to load user after insert")
     return user
 
 
-def update_user(db: Session, user_id: int, data: UserUpdate) -> User | None:
-    user = get_user(db, user_id)
-    if not user:
+def update_user(db: sqlite3.Connection, user_id: int, data: UserUpdate) -> dict | None:
+    if get_user(db, user_id) is None:
         return None
-    for field, value in data.model_dump(exclude_unset=True).items():
-        setattr(user, field, value)
+    fields = {
+        key: (int(value) if key == "is_active" and value is not None else value)
+        for key, value in data.model_dump(exclude_unset=True).items()
+        if key in _USER_UPDATE_FIELDS
+    }
+    if fields:
+        assignments = ", ".join(f"{column} = ?" for column in fields)
+        try:
+            db.execute(
+                f"UPDATE users SET {assignments} WHERE id = ?",  # noqa: S608
+                (*fields.values(), user_id),
+            )
+            db.commit()
+        except sqlite3.IntegrityError:
+            db.rollback()
+            raise
+    return get_user(db, user_id)
+
+
+def delete_user(db: sqlite3.Connection, user_id: int) -> bool:
+    cursor = db.execute("DELETE FROM users WHERE id = ?", (user_id,))
     db.commit()
-    db.refresh(user)
-    return user
+    return cursor.rowcount > 0
 
 
-def delete_user(db: Session, user_id: int) -> bool:
-    user = get_user(db, user_id)
-    if not user:
-        return False
-    db.delete(user)
-    db.commit()
-    return True
+def get_item(db: sqlite3.Connection, item_id: int) -> dict | None:
+    row = db.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
+    return row_to_dict(row) if row else None
 
 
-# --- Items ---
+def get_items(db: sqlite3.Connection, skip: int = 0, limit: int = 100) -> list[dict]:
+    rows = db.execute(
+        "SELECT * FROM items ORDER BY id LIMIT ? OFFSET ?",
+        (limit, skip),
+    ).fetchall()
+    return [row_to_dict(row) for row in rows]
 
 
-def get_item(db: Session, item_id: int) -> Item | None:
-    return db.query(Item).filter(Item.id == item_id).first()
-
-
-def get_items(db: Session, skip: int = 0, limit: int = 100) -> list[Item]:
-    return db.query(Item).offset(skip).limit(limit).all()
-
-
-def create_item(db: Session, data: ItemCreate) -> Item:
-    item = Item(**data.model_dump())
-    db.add(item)
-    db.commit()
-    db.refresh(item)
+def create_item(db: sqlite3.Connection, data: ItemCreate) -> dict:
+    try:
+        cursor = db.execute(
+            "INSERT INTO items (title, description, owner_id) VALUES (?, ?, ?)",
+            (data.title, data.description, data.owner_id),
+        )
+        db.commit()
+    except sqlite3.IntegrityError:
+        db.rollback()
+        raise
+    item = get_item(db, _require_lastrowid(cursor))
+    if item is None:
+        raise RuntimeError("Failed to load item after insert")
     return item
 
 
-def update_item(db: Session, item_id: int, data: ItemUpdate) -> Item | None:
-    item = get_item(db, item_id)
-    if not item:
+def update_item(db: sqlite3.Connection, item_id: int, data: ItemUpdate) -> dict | None:
+    if get_item(db, item_id) is None:
         return None
-    for field, value in data.model_dump(exclude_unset=True).items():
-        setattr(item, field, value)
-    db.commit()
-    db.refresh(item)
-    return item
+    fields = {
+        key: value
+        for key, value in data.model_dump(exclude_unset=True).items()
+        if key in _ITEM_UPDATE_FIELDS
+    }
+    if fields:
+        assignments = ", ".join(f"{column} = ?" for column in fields)
+        db.execute(
+            f"UPDATE items SET {assignments} WHERE id = ?",  # noqa: S608
+            (*fields.values(), item_id),
+        )
+        db.commit()
+    return get_item(db, item_id)
 
 
-def delete_item(db: Session, item_id: int) -> bool:
-    item = get_item(db, item_id)
-    if not item:
-        return False
-    db.delete(item)
+def delete_item(db: sqlite3.Connection, item_id: int) -> bool:
+    cursor = db.execute("DELETE FROM items WHERE id = ?", (item_id,))
     db.commit()
-    return True
+    return cursor.rowcount > 0

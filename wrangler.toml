@@ -1,0 +1,13 @@
+name = "fastapi-starter-kit-edge"
+main = "cloudflare/worker.js"
+compatibility_date = "2026-09-14"
+
+[vars]
+ORIGIN_URL = "http://localhost:8000"
+SHARD_ID = "shard_amer_01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "fastapi-starter-kit"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "cloudflare/migrations"

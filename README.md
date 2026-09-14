@@ -5,9 +5,9 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-A production-ready FastAPI starter with SQLite/SQLAlchemy, full CRUD for users
+A production-ready FastAPI starter with SQLite (`sqlite3`), full CRUD for users
 and items, Pydantic v2 schemas, CORS, structured logging, dotenv config, a
-pytest suite, and Docker support.
+pytest suite, Docker support, and an optional Cloudflare Worker/D1 edge shim.
 
 ---
 
@@ -31,7 +31,7 @@ flowchart TD
     Req[HTTP Request] --> Main[main.py: CORS + exception handler]
     Main --> RouterL[Routers: users / items]
     RouterL -->|Pydantic v2 validation| Crud[crud.py]
-    Crud -->|SQLAlchemy ORM| DB[(SQLite app.db / :memory:)]
+    Crud -->|sqlite3 parameterized SQL| DB[(SQLite app.db / :memory:)]
 ```
 
 Each HTTP request passes through the following layers:
@@ -46,7 +46,7 @@ HTTP request
  Router  ── Pydantic input validation (→ 422 on failure)
      │       routers/users.py  |  routers/items.py
      ▼
- crud.py ── SQLAlchemy ORM queries
+ crud.py ── sqlite3 parameterized queries
      │
      ▼
  SQLite  ── app.db (file) or :memory: (tests)
@@ -54,15 +54,19 @@ HTTP request
 
 **Key design decisions:**
 
-- **Flat module layout** — `config`, `database`, `models`, `schemas`, and `crud`
+- **sqlite3, no ORM** — persistence uses the Python standard library. Schema
+  lives in `database.py`; queries in `crud.py` are parameterized (`?` placeholders).
+- **Flat module layout** — `config`, `database`, `schemas`, and `crud`
   are top-level modules; routers live in `routers/`. No unnecessary nesting.
-- **Dependency injection** — `get_db` is a FastAPI dependency. Tests override it
-  with an in-memory session; no mocking required.
-- **No ORM relationships in responses** — response schemas are flat Pydantic
-  models. Relationship data is fetched explicitly if needed, keeping serialization
-  predictable.
-- **Cascade deletes** — deleting a `User` automatically deletes their `Item`
-  records via SQLAlchemy's `cascade="all, delete-orphan"`.
+- **Dependency injection** — `get_db` is a FastAPI dependency that yields a
+  `sqlite3.Connection`. Tests override it with a shared in-memory database.
+- **No ORM objects in responses** — handlers return dicts that FastAPI validates
+  against Pydantic response models.
+- **Cascade deletes** — deleting a `User` deletes their `Item` rows via
+  `ON DELETE CASCADE` (foreign keys are enabled with `PRAGMA foreign_keys = ON`).
+- **Isolate mesh controls** — L1 LRU cache and a 50k req/min limiter sit on the
+  origin. Eight-PoP throughput figures in `/ops/status` are a configured catalog,
+  not live Cloudflare Analytics.
 
 ---
 
@@ -72,18 +76,27 @@ HTTP request
 fastapi-starter-kit/
 ├── main.py              # App entry: CORS, logging, routers, error handler
 ├── config.py            # Env config (python-dotenv)
-├── database.py          # SQLAlchemy engine, SessionLocal, Base, get_db
-├── models.py            # ORM models: User, Item
+├── database.py          # sqlite3 connect, schema, get_db
 ├── schemas.py           # Pydantic schemas: Create / Update / Response
-├── crud.py              # All database operations
+├── crud.py              # Parameterized SQL for users and items
+├── cache.py             # In-isolate L1 LRU (TTL)
+├── rate_limit.py        # Per-client sliding window
+├── mesh.py              # PoP / tenant / LLM failover catalog
+├── wrangler.toml        # Cloudflare Worker + D1 bindings
+├── cloudflare/
+│   ├── worker.js        # Edge proxy + geo shard headers
+│   └── migrations/      # D1 SQL (same schema as sqlite3)
 ├── routers/
 │   ├── users.py         # /users endpoints
-│   └── items.py         # /items endpoints
+│   ├── items.py         # /items endpoints
+│   └── ops.py           # /ops mesh catalog endpoints
 ├── tests/
 │   ├── conftest.py      # Fixtures: in-memory DB, client, seeded data
 │   ├── test_health.py
 │   ├── test_users.py
-│   └── test_items.py
+│   ├── test_items.py
+│   ├── test_database.py
+│   └── test_ops.py
 ├── .env.example         # Copy to .env before first run
 ├── .github/
 │   └── workflows/
@@ -164,8 +177,12 @@ so the app starts without a `.env` file.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DATABASE_URL` | `sqlite:///./app.db` | SQLAlchemy connection string |
+| `SQLITE_PATH` | `./app.db` | Filesystem path to the SQLite database file |
+| `DATABASE_URL` | _(unset)_ | Optional alias; `sqlite:///./app.db` is mapped to a file path |
 | `ALLOWED_ORIGINS` | `http://localhost:3000` | Comma-separated list of CORS origins |
+| `RATE_LIMIT_PER_MINUTE` | `50000` | Isolate rate limit per client IP (or `CF-Connecting-IP`) |
+| `L1_CACHE_MAXSIZE` | `4096` | In-process LRU entries for GET `/users/{id}` and `/items/{id}` |
+| `L1_CACHE_TTL_SECONDS` | `30` | L1 cache TTL |
 | `LOG_LEVEL` | `INFO` | Logging verbosity: `DEBUG` `INFO` `WARNING` `ERROR` |
 
 ---
@@ -181,6 +198,16 @@ HTTP/1.1 200 OK
 
 {"status": "ok"}
 ```
+
+#### `GET /ops/status`
+
+Isolate cache/rate-limit stats plus the configured 8-shard topology. Topology
+figures are catalog values, not live Cloudflare Analytics.
+
+#### `GET /ops/route?country=JP`
+
+Maps ISO country code to D1 shard / colo (`JP` → `shard_apac_01` / `NRT`).
+Unknown countries fall back to `shard_amer_01`.
 
 ---
 
@@ -325,9 +352,9 @@ HTTP/1.1 404 Not Found → {"detail": "Item not found"}
 pytest -v
 ```
 
-The test suite uses an in-memory SQLite database (via `StaticPool`) and
-`httpx.AsyncClient` — no running server or external services required. Each test
-function starts with a clean database.
+The test suite uses a shared in-memory SQLite database (`sqlite3` URI
+`mode=memory&cache=shared`) and `httpx.AsyncClient` — no running server or
+external services required. Each test function starts with a clean database.
 
 ```bash
 pytest -v -k "TestCreateUser"    # run a single class
