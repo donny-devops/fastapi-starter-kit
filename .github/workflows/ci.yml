@@ -73,11 +73,15 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # trivy-action@v0.36.0 installs Trivy via GitHub's releases API (default
+      # binary v0.70.0). Concurrent push+PR jobs 404 that tag under rate limits
+      # even though the tag exists. Scan with the published image instead.
       - name: Trivy config scan
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          scan-type: config
-          scan-ref: .
-          severity: HIGH,CRITICAL
-          exit-code: '0'
-          format: table
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/src:ro" \
+            aquasec/trivy:0.74.0 \
+            config /src \
+            --severity HIGH,CRITICAL \
+            --exit-code 0 \
+            --format table
