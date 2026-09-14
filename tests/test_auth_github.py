@@ -73,9 +73,7 @@ async def test_me_unauthenticated_returns_401(client: AsyncClient):
     assert resp.json()["detail"] == "Not authenticated"
 
 
-async def test_callback_happy_path_then_me_and_logout(
-    client: AsyncClient, monkeypatch
-):
+async def test_callback_happy_path_then_me_and_logout(client: AsyncClient, monkeypatch):
     monkeypatch.setattr("routers.auth_github.GITHUB_CLIENT_ID", "client-id")
     monkeypatch.setattr("routers.auth_github.GITHUB_CLIENT_SECRET", "client-secret")
     monkeypatch.setattr("routers.auth_github.httpx.AsyncClient", _FakeAsyncClient)

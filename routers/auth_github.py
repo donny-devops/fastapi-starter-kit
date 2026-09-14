@@ -99,7 +99,9 @@ async def github_callback(
             )
         token_data = token_resp.json()
         if "error" in token_data:
-            logger.warning("GitHub token exchange rejected: %s", token_data.get("error"))
+            logger.warning(
+                "GitHub token exchange rejected: %s", token_data.get("error")
+            )
             raise HTTPException(
                 status_code=400,
                 detail="GitHub OAuth token exchange was rejected",
@@ -116,9 +118,7 @@ async def github_callback(
         }
         user_resp = await client.get(GITHUB_USER_URL, headers=_gh_headers)
         if user_resp.status_code != 200:
-            logger.warning(
-                "GitHub user fetch failed status=%s", user_resp.status_code
-            )
+            logger.warning("GitHub user fetch failed status=%s", user_resp.status_code)
             raise HTTPException(
                 status_code=502,
                 detail="Failed to fetch GitHub user",
