@@ -1,0 +1,17 @@
+{
+  "name": "fastapi-starter-kit-plugins",
+  "owner": {
+    "name": "donny-devops",
+    "email": "mr.adonisjimenez@gmail.com"
+  },
+  "metadata": {
+    "description": "Cursor plugins shipped with fastapi-starter-kit"
+  },
+  "plugins": [
+    {
+      "name": "granola-engineer",
+      "source": "./plugins/granola-engineer",
+      "description": "Decisions-aware agent that anchors FastAPI starter-kit work to Granola meeting context"
+    }
+  ]
+}
