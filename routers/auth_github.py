@@ -1,3 +1,4 @@
+import logging
 import secrets
 from urllib.parse import urlencode
 
@@ -11,12 +12,24 @@ from config import (
     GITHUB_REDIRECT_URI,
 )
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["GitHub OAuth"])
 
 GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
 GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
 GITHUB_USER_URL = "https://api.github.com/user"
 GITHUB_EMAILS_URL = "https://api.github.com/user/emails"
+
+
+def _public_github_user(payload: dict, email: str | None) -> dict:
+    return {
+        "id": payload.get("id"),
+        "login": payload.get("login"),
+        "name": payload.get("name"),
+        "email": email,
+        "html_url": payload.get("html_url"),
+        "avatar_url": payload.get("avatar_url"),
+    }
 
 
 @router.get("/login/github", summary="Redirect to GitHub OAuth")
@@ -77,13 +90,22 @@ async def github_callback(
             headers={"Accept": "application/json"},
         )
         if token_resp.status_code != 200:
+            logger.warning(
+                "GitHub token exchange failed status=%s", token_resp.status_code
+            )
             raise HTTPException(
                 status_code=502,
-                detail=f"GitHub token exchange failed: {token_resp.text}",
+                detail="GitHub token exchange failed",
             )
         token_data = token_resp.json()
         if "error" in token_data:
-            raise HTTPException(status_code=400, detail=token_data)
+            logger.warning(
+                "GitHub token exchange rejected: %s", token_data.get("error")
+            )
+            raise HTTPException(
+                status_code=400,
+                detail="GitHub OAuth token exchange was rejected",
+            )
         access_token: str = token_data.get("access_token", "")
         if not access_token:
             raise HTTPException(
@@ -96,9 +118,10 @@ async def github_callback(
         }
         user_resp = await client.get(GITHUB_USER_URL, headers=_gh_headers)
         if user_resp.status_code != 200:
+            logger.warning("GitHub user fetch failed status=%s", user_resp.status_code)
             raise HTTPException(
                 status_code=502,
-                detail=f"Failed to fetch GitHub user: {user_resp.text}",
+                detail="Failed to fetch GitHub user",
             )
         github_user = user_resp.json()
         email = github_user.get("email")
@@ -113,21 +136,22 @@ async def github_callback(
                     ),
                     None,
                 )
-        request.session["access_token"] = access_token
-        request.session["github_user_id"] = github_user.get("id")
+        profile = _public_github_user(github_user, email)
+        request.session["github_user"] = profile
         return JSONResponse(
             {
                 "message": "GitHub OAuth successful",
-                "github_user": {
-                    "id": github_user.get("id"),
-                    "login": github_user.get("login"),
-                    "name": github_user.get("name"),
-                    "email": email,
-                    "html_url": github_user.get("html_url"),
-                    "avatar_url": github_user.get("avatar_url"),
-                },
+                "github_user": profile,
             }
         )
+
+
+@router.get("/me", summary="Current GitHub session")
+async def auth_me(request: Request):
+    user = request.session.get("github_user")
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return user
 
 
 @router.get("/logout", summary="Clear session")

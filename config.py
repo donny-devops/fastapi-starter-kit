@@ -19,16 +19,47 @@ ALLOWED_ORIGINS: list[str] = [
     if origin.strip()
 ]
 LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()
+APP_ENV: str = os.getenv("APP_ENV", "development").strip().lower() or "development"
 
 _SECRET_KEY_RAW: str = os.getenv("SECRET_KEY", "")
-_INSECURE_DEFAULTS = {"", "change-me-in-production"}
-if _SECRET_KEY_RAW in _INSECURE_DEFAULTS:
+_INSECURE_DEFAULTS = {
+    "",
+    "change-me-in-production",
+    "change-me-in-development",
+}
+if APP_ENV == "production" or (
+    _SECRET_KEY_RAW in _INSECURE_DEFAULTS and APP_ENV not in {"development", "test"}
+):
+    if _SECRET_KEY_RAW in _INSECURE_DEFAULTS:
+        print(
+            "FATAL: SECRET_KEY must be set to a secure value when "
+            f"APP_ENV={APP_ENV!r}.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+SECRET_KEY: str = _SECRET_KEY_RAW
+if SECRET_KEY in _INSECURE_DEFAULTS:
     print(
         "WARNING: SECRET_KEY is unset; using a development-only default.",
         file=sys.stderr,
     )
-    _SECRET_KEY_RAW = "dev-only-insecure-key-do-not-use-in-prod"
-SECRET_KEY: str = _SECRET_KEY_RAW
+    SECRET_KEY = "dev-only-insecure-key-do-not-use-in-prod"
+
+_SESSION_HTTPS_RAW = os.getenv("SESSION_HTTPS_ONLY")
+if _SESSION_HTTPS_RAW is None:
+    SESSION_HTTPS_ONLY: bool = APP_ENV == "production"
+else:
+    SESSION_HTTPS_ONLY = _SESSION_HTTPS_RAW.strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+_SESSION_SAME_SITE_RAW = os.getenv("SESSION_SAME_SITE", "lax").strip().lower()
+if _SESSION_SAME_SITE_RAW not in {"lax", "strict", "none"}:
+    _SESSION_SAME_SITE_RAW = "lax"
+SESSION_SAME_SITE: str = _SESSION_SAME_SITE_RAW
 
 # GitHub OAuth
 GITHUB_CLIENT_ID: str = os.getenv("GITHUB_CLIENT_ID", "")
