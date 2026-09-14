@@ -7,7 +7,8 @@
 
 A production-ready FastAPI starter with SQLite (`sqlite3`), full CRUD for users
 and items, Pydantic v2 schemas, CORS, structured logging, dotenv config, a
-pytest suite, Docker support, and an optional Cloudflare Worker/D1 edge shim.
+pytest suite, Docker support, an optional Cloudflare Worker/D1 edge shim, and a
+Cursor **granola-engineer** plugin that grounds agent work in Granola meetings.
 
 ---
 
@@ -20,6 +21,7 @@ pytest suite, Docker support, and an optional Cloudflare Worker/D1 edge shim.
 - [Environment variables](#environment-variables)
 - [API reference](#api-reference)
 - [Running tests](#running-tests)
+- [Cursor plugin (granola-engineer)](#cursor-plugin-granola-engineer)
 - [Contributing](#contributing)
 
 ---
@@ -96,7 +98,13 @@ fastapi-starter-kit/
 │   ├── test_users.py
 │   ├── test_items.py
 │   ├── test_database.py
-│   └── test_ops.py
+│   ├── test_ops.py
+│   └── test_plugin.py
+├── plugins/
+│   └── granola-engineer/  # Cursor plugin: meeting-grounded agent
+├── .cursor/               # Project overlay (agent, MCP, rule, command)
+├── .cursor-plugin/
+│   └── marketplace.json
 ├── .env.example         # Copy to .env before first run
 ├── .github/
 │   └── workflows/
@@ -367,6 +375,29 @@ To run lint and format checks locally (same checks as CI):
 ruff check .
 ruff format --check .
 ```
+
+---
+
+## Cursor plugin (granola-engineer)
+
+This repo ships a thin Cursor plugin at
+[`plugins/granola-engineer/`](plugins/granola-engineer/). It is **not** a fork
+of the [official Granola plugin](https://github.com/granola-inc/granola-cursor-plugin).
+Clones get the same agent, MCP, rule, command, and skill from [`.cursor/`](.cursor/).
+
+| Invoke | What it does |
+| --- | --- |
+| `/granola-engineer` | Implement the current task against Granola meeting decisions |
+| granola-engineer subagent | Same prompt; used when work was discussed in a meeting |
+
+The plugin talks to `https://mcp.granola.ai/mcp`. Sign in when Cursor prompts
+you. If there are no notes, the agent follows
+[docs/PLATFORM_BASELINE.md](docs/PLATFORM_BASELINE.md) (sqlite3, public CRUD,
+optional GitHub OAuth). Install the official Granola marketplace plugin as well
+if you want `/granola-plan`, `/granola-spec`, and the rest of that suite.
+
+Keep plugin files and the `.cursor/` overlay in sync — `tests/test_plugin.py`
+fails on drift.
 
 ---
 

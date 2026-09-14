@@ -1,0 +1,14 @@
+{
+  "name": "granola-engineer",
+  "displayName": "Granola Engineer",
+  "version": "0.1.0",
+  "description": "Decisions-aware Cursor agent that anchors FastAPI starter-kit work to Granola meeting context.",
+  "author": {
+    "name": "donny-devops"
+  },
+  "homepage": "https://github.com/donny-devops/fastapi-starter-kit",
+  "repository": "https://github.com/donny-devops/fastapi-starter-kit",
+  "license": "MIT",
+  "logo": "assets/logo.svg",
+  "keywords": ["granola", "meetings", "agents", "fastapi", "decisions"]
+}
