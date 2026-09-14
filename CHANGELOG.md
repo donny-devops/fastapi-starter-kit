@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cloudflare mesh scale-up on the origin: L1 LRU cache, 50k req/min rate
   limit, `/ops/*` shard routing, 6-way LLM failover catalog, 768-d vector
   batch ingest, D1 migration, and `cloudflare/worker.js` edge proxy.
+- Granola engineer Cursor plugin at `.cursor/plugins/granola/`: granola-engineer
+  agent, context/prep/review skills, six slash commands, always-on meeting
+  context rule, and Granola MCP (`https://mcp.granola.ai/mcp`).
 
 ### Changed
 - Replaced SQLAlchemy with the Python standard-library `sqlite3` driver. Schema
