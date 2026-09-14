@@ -2,20 +2,28 @@
 
 ## Security-First Review Standards
 
+This starter uses stdlib `sqlite3`, optional GitHub session OAuth, and an
+origin rate limiter. `/users` and `/items` CRUD is **intentionally public**
+unless a later auth PR lands. Do not flag missing JWT/`get_current_user` on
+those routes as a defect.
+
 ### 1. API Security (CRITICAL)
 - **Authentication/Authorization**
-  - Verify JWT tokens are validated on protected endpoints
-  - Check for proper role-based access control (RBAC)
-  - Flag missing `Depends(get_current_user)` on protected routes
-  - Ensure password hashing uses bcrypt/argon2, never plaintext
+  - GitHub OAuth (`routers/auth_github.py`) is optional and session-based
+  - Flag OAuth callbacks that skip `state` validation
+  - Flag responses or logs that include GitHub access tokens or upstream bodies
+  - `GET /auth/me` must 401 when no `github_user` is in the session
+  - Do not require JWT, RBAC, or `Depends(get_current_user)` on CRUD
 - **Input Validation**
   - All Pydantic models should have proper validators
   - Check for SQL injection risks in raw queries
   - Verify file upload size limits and type validation
   - Flag missing input sanitization on user-provided data
 - **Rate Limiting**
-  - Check that rate limiting middleware is applied
-  - Verify sensitive endpoints (login, register) have stricter limits
+  - Origin limiter in `main.py` (`rate_limit.py`) must remain on mutating and
+    data routes; `/health` and `/ready` stay excluded
+  - Verify sensitive endpoints (OAuth login/callback) are not exempted unless
+    documented
 
 ### 2. Database Security
 - **sqlite3 Best Practices**
@@ -41,14 +49,14 @@
   - Multi-stage builds to minimize attack surface
   - No secrets in environment variables or layers
 - **docker-compose.yml**
-  - Database passwords must use `_FILE` suffix or secrets
+  - `SECRET_KEY` must be required when `APP_ENV=production`
   - Check for exposed ports that should be internal only
-  - Verify health checks are configured
+  - Verify health checks hit `/ready` (DB ping), not only `/health`
 
 ### 5. Testing & Coverage
 - New routes MUST have corresponding tests in `tests/`
 - Check for proper test isolation (rollback after each test)
-- Verify edge cases: invalid input, unauthorized access, rate limits
+- Verify edge cases: invalid input, unauthenticated `/auth/me`, rate limits
 - Flag missing exception handling tests
 
 ### 6. Dependencies
@@ -59,7 +67,7 @@
 ### 7. Logging & Error Handling
 - Never log sensitive data (passwords, tokens, PII)
 - Use structured logging (JSON format preferred)
-- Error responses should not leak stack traces in production
+- Error responses should not leak stack traces or upstream OAuth bodies
 - Check for proper exception handling in route handlers
 
 ## Code Quality Standards
@@ -70,22 +78,16 @@
 
 ## Response Format
 ```
-**[SEVERITY]**: API Security - Missing Authentication
+**[SEVERITY]**: API Security - OAuth state missing
 
-**Location**: `app/api/routes/users.py:45`
-**Problem**: Endpoint `/api/users/{user_id}/delete` is missing authentication dependency
-**Risk**: Unauthenticated users can delete any user account (CRITICAL vulnerability)
-**Fix**: 
+**Location**: `routers/auth_github.py:58`
+**Problem**: GitHub callback accepts `code` without comparing `state` to the session value
+**Risk**: CSRF against the OAuth callback can bind another user's GitHub identity
+**Fix**:
 \```python
-@router.delete("/{user_id}")
-async def delete_user(
-    user_id: int,
-    current_user: User = Depends(get_current_active_user),  # Add this
-    db: AsyncSession = Depends(get_db)
-):
-    if current_user.id != user_id and not current_user.is_superuser:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    # ... rest of function
+expected_state = request.session.pop("oauth_state", None)
+if not expected_state or state != expected_state:
+    raise HTTPException(status_code=400, detail="Invalid or expired OAuth state")
 \```
 ```
 
