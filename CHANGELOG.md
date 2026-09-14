@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   context rule, and Granola MCP (`https://mcp.granola.ai/mcp`).
 
 ### Changed
+- Bump CI Trivy scan to `aquasecurity/trivy-action@v0.36.0`. `v0.28.0` pulls
+  unpublished `setup-trivy@v0.2.1` and Docker CI fails before the image build.
 - Replaced SQLAlchemy with the Python standard-library `sqlite3` driver. Schema
   is created in `database.py`; CRUD uses parameterized SQL. `models.py` and the
   `sqlalchemy` dependency are removed.
