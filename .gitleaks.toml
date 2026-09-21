@@ -1,4 +1,4 @@
-title = "openclaw-revenue-engine secret scanning"
+title = "fastapi-starter-kit secret scanning"
 
 [extend]
 useDefault = true
@@ -21,5 +21,6 @@ regexes = [
   '''whsec_your_webhook_secret_here''',
   '''change_me_to_a_long_random_secret_in_production''',
   '''change_me_to_a_long_random_operator_key''',
-  '''your_moltgate_api_key_here'''
+  '''your_moltgate_api_key_here''',
+  '''eyJhbG.*\.\.\.'''
 ]
