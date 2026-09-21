@@ -21,4 +21,4 @@ def test_sqlite_file_uri_passthrough():
 
 def test_rejects_non_sqlite_urls():
     with pytest.raises(RuntimeError, match="sqlite3 stdlib"):
-        sqlite_path("postgresql+psycopg://user:pass@localhost/db")
+        sqlite_path("postgresql+psycopg://localhost/db")
