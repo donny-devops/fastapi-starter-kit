@@ -6,8 +6,9 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 A production-ready FastAPI starter with SQLite (`sqlite3`), full CRUD for users
-and items, Pydantic v2 schemas, CORS, structured logging, dotenv config, a
-pytest suite, Docker support, and an optional Cloudflare Worker/D1 edge shim.
+and items, optional GitHub session OAuth, Pydantic v2 schemas, CORS, structured
+logging, dotenv config, a pytest suite, Docker support, and an optional
+Cloudflare Worker/D1 edge shim. CRUD is open by default; JWT is not included.
 
 ---
 
@@ -67,6 +68,8 @@ HTTP request
 - **Isolate mesh controls** — L1 LRU cache and a 50k req/min limiter sit on the
   origin. Eight-PoP throughput figures in `/ops/status` are a configured catalog,
   not live Cloudflare Analytics.
+- **Optional GitHub OAuth** — session cookies after `/auth/login/github`.
+  `/users` and `/items` stay unauthenticated unless you add an auth layer later.
 
 ---
 
@@ -89,6 +92,7 @@ fastapi-starter-kit/
 ├── routers/
 │   ├── users.py         # /users endpoints
 │   ├── items.py         # /items endpoints
+│   ├── auth_github.py   # optional GitHub OAuth + /auth/me
 │   └── ops.py           # /ops mesh catalog endpoints
 ├── tests/
 │   ├── conftest.py      # Fixtures: in-memory DB, client, seeded data
@@ -96,7 +100,8 @@ fastapi-starter-kit/
 │   ├── test_users.py
 │   ├── test_items.py
 │   ├── test_database.py
-│   └── test_ops.py
+│   ├── test_ops.py
+│   └── test_auth_github.py
 ├── .env.example         # Copy to .env before first run
 ├── .github/
 │   └── workflows/
@@ -145,13 +150,13 @@ Interactive docs:
 **Requirements:** Docker 24+ with the Compose plugin
 
 ```bash
-# 1. Configure environment
-cp .env.example .env             # edit values as needed
+# Optional: copy and edit env (Compose starts without a .env file)
+cp .env.example .env
 
-# 2. Build and start
+# Build and start
 docker compose up --build
 
-# 3. Stop and remove containers (data volume is preserved)
+# Stop and remove containers (data volume is preserved)
 docker compose down
 ```
 
@@ -165,8 +170,8 @@ To wipe the database volume:
 docker compose down -v
 ```
 
-**Healthcheck** — Docker polls `GET /health` every 30 s (3 retries, 10 s start
-period). The container is marked `healthy` once the endpoint returns 200.
+**Healthcheck** — Docker polls `GET /ready` every 30 s (3 retries, 10 s start
+period). The container is marked `healthy` once sqlite3 answers `SELECT 1`.
 
 ---
 
@@ -177,6 +182,10 @@ so the app starts without a `.env` file.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `APP_ENV` | `development` | `development` / `test` allow a fallback session secret; `production` requires `SECRET_KEY` |
+| `SECRET_KEY` | _(dev fallback)_ | Session signing key. Required when `APP_ENV=production` |
+| `SESSION_HTTPS_ONLY` | `true` in production | Set the session cookie `Secure` flag |
+| `SESSION_SAME_SITE` | `lax` | Session cookie SameSite: `lax`, `strict`, or `none` |
 | `SQLITE_PATH` | `./app.db` | Filesystem path to the SQLite database file |
 | `DATABASE_URL` | _(unset)_ | Optional alias; `sqlite:///./app.db` is mapped to a file path |
 | `ALLOWED_ORIGINS` | `http://localhost:3000` | Comma-separated list of CORS origins |
@@ -184,6 +193,9 @@ so the app starts without a `.env` file.
 | `L1_CACHE_MAXSIZE` | `4096` | In-process LRU entries for GET `/users/{id}` and `/items/{id}` |
 | `L1_CACHE_TTL_SECONDS` | `30` | L1 cache TTL |
 | `LOG_LEVEL` | `INFO` | Logging verbosity: `DEBUG` `INFO` `WARNING` `ERROR` |
+| `GITHUB_CLIENT_ID` | _(empty)_ | GitHub OAuth app client ID (optional) |
+| `GITHUB_CLIENT_SECRET` | _(empty)_ | GitHub OAuth app client secret (optional) |
+| `GITHUB_REDIRECT_URI` | `http://localhost:8000/auth/github/callback` | OAuth callback URL |
 
 ---
 
@@ -193,10 +205,49 @@ so the app starts without a `.env` file.
 
 #### `GET /health`
 
+Liveness. Does not touch the database.
+
 ```
 HTTP/1.1 200 OK
 
 {"status": "ok"}
+```
+
+#### `GET /ready`
+
+Readiness. Runs `SELECT 1` against sqlite3.
+
+```
+HTTP/1.1 200 OK           → {"status": "ok"}
+HTTP/1.1 503 Unavailable  → {"status": "unavailable"}
+```
+
+### GitHub OAuth
+
+Optional. `/users` and `/items` do not require a session.
+
+#### `GET /auth/login/github`
+
+Redirects to GitHub. Returns `500` if `GITHUB_CLIENT_ID` is unset.
+
+#### `GET /auth/github/callback`
+
+Exchanges `code` after validating `state`. Stores a small `github_user` profile
+in the session. Does not return the GitHub access token.
+
+#### `GET /auth/me`
+
+```
+HTTP/1.1 200 OK           → github_user object
+HTTP/1.1 401 Unauthorized → {"detail": "Not authenticated"}
+```
+
+#### `GET /auth/logout`
+
+```
+HTTP/1.1 200 OK
+
+{"status": "logged out"}
 ```
 
 #### `GET /ops/status`

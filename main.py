@@ -6,8 +6,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 
-from config import ALLOWED_ORIGINS, LOG_LEVEL, SECRET_KEY
-from database import init_db
+from config import (
+    ALLOWED_ORIGINS,
+    LOG_LEVEL,
+    SECRET_KEY,
+    SESSION_HTTPS_ONLY,
+    SESSION_SAME_SITE,
+)
+from database import connect, init_db
 from rate_limit import limiter
 from routers import items, users
 from routers.auth_github import router as github_auth_router
@@ -37,8 +43,8 @@ app = FastAPI(
 app.add_middleware(
     SessionMiddleware,
     secret_key=SECRET_KEY,
-    same_site="lax",
-    https_only=False,
+    same_site=SESSION_SAME_SITE,
+    https_only=SESSION_HTTPS_ONLY,
 )
 
 app.add_middleware(
@@ -67,7 +73,13 @@ app.include_router(ops_router)
 
 @app.middleware("http")
 async def mesh_rate_limit(request: Request, call_next):
-    if request.url.path in {"/health", "/docs", "/openapi.json", "/redoc"}:
+    if request.url.path in {
+        "/health",
+        "/ready",
+        "/docs",
+        "/openapi.json",
+        "/redoc",
+    }:
         return await call_next(request)
     client = request.headers.get("cf-connecting-ip")
     if not client and request.client:
@@ -91,4 +103,21 @@ async def mesh_rate_limit(request: Request, call_next):
 
 @app.get("/health", tags=["health"])
 def health_check():
+    return {"status": "ok"}
+
+
+@app.get("/ready", tags=["health"])
+def ready_check():
+    try:
+        conn = connect()
+        try:
+            conn.execute("SELECT 1").fetchone()
+        finally:
+            conn.close()
+    except Exception:
+        logger.exception("Readiness check failed")
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unavailable"},
+        )
     return {"status": "ok"}
