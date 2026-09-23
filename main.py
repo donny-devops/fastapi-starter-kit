@@ -8,10 +8,12 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from config import ALLOWED_ORIGINS, LOG_LEVEL, SECRET_KEY
 from database import init_db
+from models import init_sqlalchemy_db
 from rate_limit import limiter
 from routers import items, users
 from routers.auth_github import router as github_auth_router
 from routers.ops import router as ops_router
+from routers.webhooks import router as webhooks_router
 
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL, logging.INFO),
@@ -24,7 +26,8 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    logger.info("SQLite tables ready")
+    init_sqlalchemy_db()
+    logger.info("SQLite & SQLAlchemy tables ready")
     yield
 
 
@@ -63,11 +66,14 @@ app.include_router(users.router)
 app.include_router(items.router)
 app.include_router(github_auth_router)
 app.include_router(ops_router)
+app.include_router(webhooks_router)
 
 
 @app.middleware("http")
 async def mesh_rate_limit(request: Request, call_next):
-    if request.url.path in {"/health", "/docs", "/openapi.json", "/redoc"}:
+    if request.url.path in {"/health", "/docs", "/openapi.json", "/redoc"} or request.url.path.startswith(
+        "/api/webhooks"
+    ):
         return await call_next(request)
     client = request.headers.get("cf-connecting-ip")
     if not client and request.client:
