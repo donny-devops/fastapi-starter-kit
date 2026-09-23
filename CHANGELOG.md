@@ -18,7 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `sqlalchemy` dependency are removed.
 - Restored valid YAML for the Trivy step in `.github/workflows/ci.yml` (diff
   markers had been committed, so GitHub skipped the workflow) and pin
-  `aquasecurity/trivy-action@v0.28.0` (the unprefixed `0.28.0` tag does not exist).
+  `aquasecurity/trivy-action` to `v0.36.0` by SHA
+  (`ed142fd0673e97e23eac54620cfb913e5ce36c25`). `v0.28.0` nested
+  `setup-trivy@v0.2.1`, a tag that no longer exists.
 - Dockerfile keeps `httpx` (needed by GitHub OAuth) and creates a writable
   `/app/data` directory for the Compose SQLite volume.
 
