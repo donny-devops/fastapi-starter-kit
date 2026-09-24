@@ -11,6 +11,7 @@ from database import init_db
 from models import init_sqlalchemy_db
 from rate_limit import limiter
 from routers import items, users
+from routers.auth_clerk import router as clerk_auth_router
 from routers.auth_github import router as github_auth_router
 from routers.ops import router as ops_router
 from routers.webhooks import router as webhooks_router
@@ -65,6 +66,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 app.include_router(users.router)
 app.include_router(items.router)
 app.include_router(github_auth_router)
+app.include_router(clerk_auth_router)
 app.include_router(ops_router)
 app.include_router(webhooks_router)
 
