@@ -73,9 +73,12 @@ app.include_router(webhooks_router)
 
 @app.middleware("http")
 async def mesh_rate_limit(request: Request, call_next):
-    if request.url.path in {"/health", "/docs", "/openapi.json", "/redoc"} or request.url.path.startswith(
-        "/api/webhooks"
-    ):
+    if request.url.path in {
+        "/health",
+        "/docs",
+        "/openapi.json",
+        "/redoc",
+    } or request.url.path.startswith("/api/webhooks"):
         return await call_next(request)
     client = request.headers.get("cf-connecting-ip")
     if not client and request.client:

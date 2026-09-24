@@ -30,7 +30,9 @@ def override_secret(monkeypatch):
     session.close()
 
 
-def sign_payload(payload_dict: dict, secret: str = TEST_KEY, msg_id: str | None = None) -> tuple[str, dict]:
+def sign_payload(
+    payload_dict: dict, secret: str = TEST_KEY, msg_id: str | None = None
+) -> tuple[str, dict]:
     raw_body = json.dumps(payload_dict)
     msg_id = msg_id or f"msg_{int(time.time() * 1000)}"
     now = datetime.now(timezone.utc)

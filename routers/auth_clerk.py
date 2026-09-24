@@ -12,7 +12,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth/clerk", tags=["Clerk Authentication"])
 
 CLERK_SECRET_KEY = os.environ.get("CLERK_SECRET_KEY", "sk_test_mock_clerk_key")
-CLERK_PUBLISHABLE_KEY = os.environ.get("CLERK_PUBLISHABLE_KEY", "pk_test_mock_clerk_key")
+CLERK_PUBLISHABLE_KEY = os.environ.get(
+    "CLERK_PUBLISHABLE_KEY", "pk_test_mock_clerk_key"
+)
 
 
 def extract_clerk_token(

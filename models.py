@@ -22,7 +22,9 @@ class ClerkUser(Base):
     __tablename__ = "clerk_users"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    email: Mapped[str] = mapped_column(
+        String(255), unique=True, index=True, nullable=False
+    )
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     first_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     last_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
