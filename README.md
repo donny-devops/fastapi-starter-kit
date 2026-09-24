@@ -19,6 +19,7 @@ pytest suite, Docker support, and an optional Cloudflare Worker/D1 edge shim.
 - [Docker setup](#docker-setup)
 - [Environment variables](#environment-variables)
 - [API reference](#api-reference)
+- [Granola engineer plugin](#granola-engineer-plugin)
 - [Running tests](#running-tests)
 - [Contributing](#contributing)
 
@@ -96,7 +97,11 @@ fastapi-starter-kit/
 │   ├── test_users.py
 │   ├── test_items.py
 │   ├── test_database.py
-│   └── test_ops.py
+│   ├── test_ops.py
+│   └── test_granola_plugin.py
+├── .cursor/
+│   ├── mcp.json         # Workspace Granola MCP (https://mcp.granola.ai/mcp)
+│   └── plugins/granola/ # granola-engineer Cursor plugin
 ├── .env.example         # Copy to .env before first run
 ├── .github/
 │   └── workflows/
@@ -343,6 +348,37 @@ Does not affect the owning user.
 HTTP/1.1 204 No Content
 HTTP/1.1 404 Not Found → {"detail": "Item not found"}
 ```
+
+---
+
+## Granola engineer plugin
+
+This starter kit vendors the [Granola](https://granola.ai) Cursor plugin at
+`.cursor/plugins/granola/`, including the **granola-engineer** agent.
+
+Open the repo in Cursor, then sign in the first time a Granola MCP tool runs.
+You need a Granola account with meeting notes. The workspace also declares the
+same server in `.cursor/mcp.json`.
+
+| Kind | Name | Role |
+| --- | --- | --- |
+| Agent | `/granola-engineer` | Anchor implementation choices to meeting decisions |
+| Skill | `granola-context` | Look up what was discussed or decided |
+| Skill | `granola-review` | Diff current work against meeting agreements |
+| Skill | `granola-prep` | Prep for an upcoming meeting |
+| Command | `/granola-plan` | Prioritized build plan from recent meetings |
+| Command | `/granola-spec` | Spec traced to meeting requirements |
+| Command | `/granola-brief` | Topic briefing across meetings |
+| Command | `/granola-bug-report` | Bug report from a walkthrough call |
+| Command | `/granola-pr` | PR description grounded in meeting decisions |
+| Command | `/granola-gaps` | Meeting items not yet reflected in code |
+| Rule | `check-meeting-context` | Always-on nudge to check Granola when it matters |
+
+MCP tools: `query_granola_meetings`, `list_meetings`, `list_meeting_folders`,
+`get_meetings`, `get_meeting_transcript`. Plugin README:
+[`.cursor/plugins/granola/README.md`](.cursor/plugins/granola/README.md).
+
+Marketplace (optional): <https://cursor.com/marketplace/granola>
 
 ---
 

@@ -1,0 +1,33 @@
+{
+  "name": "granola",
+  "displayName": "Granola",
+  "version": "1.0.0",
+  "minClientVersions": {
+    "cursor": "3.13.0"
+  },
+  "description": "Your meetings in your workflow. Granola gives Cursor access to what your team discussed, decided, and committed to — including the granola-engineer agent.",
+  "author": {
+    "name": "Granola",
+    "email": "hello@granola.ai"
+  },
+  "homepage": "https://granola.ai",
+  "repository": "https://github.com/granola-inc/granola-cursor-plugin",
+  "license": "MIT",
+  "keywords": [
+    "meetings",
+    "notes",
+    "decisions",
+    "context",
+    "granola",
+    "granola-engineer"
+  ],
+  "category": "integrations",
+  "tags": [
+    "granola",
+    "meetings",
+    "mcp",
+    "decisions",
+    "granola-engineer"
+  ],
+  "mcpServers": "./mcp.json"
+}

@@ -11,8 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cloudflare mesh scale-up on the origin: L1 LRU cache, 50k req/min rate
   limit, `/ops/*` shard routing, 6-way LLM failover catalog, 768-d vector
   batch ingest, D1 migration, and `cloudflare/worker.js` edge proxy.
+- Granola engineer Cursor plugin at `.cursor/plugins/granola/`: granola-engineer
+  agent, context/prep/review skills, six slash commands, always-on meeting
+  context rule, and Granola MCP (`https://mcp.granola.ai/mcp`).
 
 ### Changed
+- Bump CI Trivy scan off `aquasecurity/trivy-action`. Nested
+  `setup-trivy` either misses unpublished tags (`v0.2.1`) or 404s
+  `trivy` `v0.70.0` on concurrent push+PR GitHub API calls. Config
+  scan now runs `aquasec/trivy:0.74.0` via Docker.
 - Replaced SQLAlchemy with the Python standard-library `sqlite3` driver. Schema
   is created in `database.py`; CRUD uses parameterized SQL. `models.py` and the
   `sqlalchemy` dependency are removed.

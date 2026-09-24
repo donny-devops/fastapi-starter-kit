@@ -37,9 +37,10 @@ CONTRIBUTING.md
 SECURITY.md
 LICENSE
 
-# IDE
+# IDE / Cursor plugin (not needed inside the image)
 .vscode/
 .idea/
+.cursor/
 
 # OS
 .DS_Store
