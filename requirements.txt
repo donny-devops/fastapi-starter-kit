@@ -4,7 +4,7 @@ python-dotenv==1.2.2
 email-validator==2.2.0
 itsdangerous==2.2.0
 svix==1.56.0
-sqlalchemy>=2.0.0
+sqlalchemy>=2.0.54
 
 # Testing & linting
 pytest==8.3.5
