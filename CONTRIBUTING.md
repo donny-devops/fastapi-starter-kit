@@ -40,6 +40,19 @@ Tests use an in-memory SQLite database and do not require a running server.
 Add new tests in `tests/` alongside existing ones. All new endpoints and CRUD
 functions should have corresponding test coverage.
 
+If you change `plugins/granola-engineer/`, copy the matching files into
+`.cursor/` (agent, command, skill, rule, `mcp.json`) so
+`pytest -k test_plugin` stays green.
+
+## Cursor / Granola Engineer
+
+The granola-engineer plugin lives in `plugins/granola-engineer/` and is
+mirrored under `.cursor/` so clones load it without a marketplace install.
+See [plugins/granola-engineer/README.md](plugins/granola-engineer/README.md).
+Do not vendor the official Granola marketplace plugin into this repo.
+
+## Commit messages
+
 ## Commit messages
 
 Use the conventional commits style:
