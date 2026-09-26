@@ -73,11 +73,12 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Trivy config scan
-        uses: aquasecurity/trivy-action@v0.28.0
-        with:
-          scan-type: config
-          scan-ref: .
-          severity: HIGH,CRITICAL
-          exit-code: '0'
-          format: table
+      - name: Run Trivy vulnerability scanner
+  uses: aquasecurity/trivy-action@v0.28.0
+  with:
+    image-ref: 'your-image:tag'
+    format: 'table'
+    exit-code: '1'
+    ignore-unfixed: true
+    vuln-type: 'os,library'
+    severity: 'CRITICAL,HIGH'
